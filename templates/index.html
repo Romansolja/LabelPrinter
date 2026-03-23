@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Food Tracker</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 16px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        h1 { margin-bottom: 16px; font-size: 1.5rem; }
+        h2 { margin: 20px 0 12px; font-size: 1.2rem; }
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-weight: bold; margin-bottom: 4px; font-size: 0.9rem; }
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            font-size: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 1rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            color: white;
+        }
+        button:active { opacity: 0.8; }
+        .btn-add { background: #2196F3; width: 100%; margin-top: 8px; }
+        .btn-done { background: #4CAF50; }
+        .btn-reprint { background: #FF9800; }
+        .item {
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .item-info { flex: 1; min-width: 200px; font-size: 0.95rem; line-height: 1.5; }
+        .item-info strong { font-size: 1.05rem; }
+        .item-actions { display: flex; gap: 8px; }
+        .item-actions button { padding: 8px 14px; font-size: 0.85rem; }
+        .expired { background: #ffcdd2; }
+        .urgent { background: #ffe0b2; }
+        .warning { background: #fff9c4; }
+        .fresh { background: #c8e6c9; }
+        .empty { color: #888; text-align: center; margin-top: 24px; }
+    </style>
+</head>
+<body>
+    <h1>Food Tracker</h1>
+
+    <form action="/add" method="POST">
+        <div class="form-group">
+            <label for="name">Food Name</label>
+            <input type="text" id="name" name="name" list="food-names"
+                   placeholder="e.g. Chicken breast" required autocomplete="off">
+            <datalist id="food-names">
+                {% for n in names %}
+                <option value="{{ n['name'] }}">
+                {% endfor %}
+            </datalist>
+        </div>
+        <div class="form-group">
+            <label for="shelf_life">Shelf Life (days)</label>
+            <input type="number" id="shelf_life" name="shelf_life"
+                   min="0" max="365" placeholder="e.g. 7" required>
+        </div>
+        <button type="submit" class="btn-add">Add &amp; Print</button>
+    </form>
+
+    <h2>Active Items</h2>
+
+    {% if items %}
+    {% for item in items %}
+    <div class="item {% if item.days_left < 0 %}expired{% elif item.days_left <= 2 %}urgent{% elif item.days_left <= 5 %}warning{% else %}fresh{% endif %}">
+        <div class="item-info">
+            <strong>{{ item.name }}</strong><br>
+            Stored: {{ item.stored_date }} &middot; Use by: {{ item.expiration_date }}
+            &middot;
+            {% if item.days_left < 0 %}
+                <strong>EXPIRED {{ -item.days_left }}d ago</strong>
+            {% elif item.days_left == 0 %}
+                <strong>TODAY</strong>
+            {% else %}
+                {{ item.days_left }}d left
+            {% endif %}
+        </div>
+        <div class="item-actions">
+            <form action="/done/{{ item.id }}" method="POST">
+                <button type="submit" class="btn-done">Done</button>
+            </form>
+            <form action="/print/{{ item.id }}" method="POST">
+                <button type="submit" class="btn-reprint">Reprint</button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p class="empty">No active items. Add something above.</p>
+    {% endif %}
+
+    <script>
+        (function () {
+            var nameInput = document.getElementById("name");
+            var shelfInput = document.getElementById("shelf_life");
+            var autoFilled = null;
+
+            nameInput.addEventListener("input", function () {
+                var val = nameInput.value;
+                var options = document.querySelectorAll("#food-names option");
+                var match = false;
+                for (var i = 0; i < options.length; i++) {
+                    if (options[i].value === val) { match = true; break; }
+                }
+                if (!match) return;
+
+                fetch("/shelf-life/" + encodeURIComponent(val))
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (data.days !== null && (shelfInput.value === "" || shelfInput.value === String(autoFilled))) {
+                            shelfInput.value = data.days;
+                            autoFilled = data.days;
+                        }
+                    });
+            });
+        })();
+    </script>
+</body>
+</html>
