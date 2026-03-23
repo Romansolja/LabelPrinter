@@ -2,139 +2,727 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Food Tracker</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Kitchen Tracker</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
+        html, body {
+            height: 100%;
+            overflow: hidden;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: #f5f5f5;
-            padding: 16px;
-            max-width: 600px;
-            margin: 0 auto;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            font-size: 16px;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
         }
-        h1 { margin-bottom: 16px; font-size: 1.5rem; }
-        h2 { margin: 20px 0 12px; font-size: 1.2rem; }
-        .form-group { margin-bottom: 12px; }
-        .form-group label { display: block; font-weight: bold; margin-bottom: 4px; font-size: 0.9rem; }
-        .form-group input {
-            width: 100%;
-            padding: 10px;
-            font-size: 1rem;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-        button {
-            padding: 10px 20px;
-            font-size: 1rem;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            color: white;
-        }
-        button:active { opacity: 0.8; }
-        .btn-add { background: #2196F3; width: 100%; margin-top: 8px; }
-        .btn-done { background: #4CAF50; }
-        .btn-reprint { background: #FF9800; }
-        .item {
-            padding: 12px;
-            margin-bottom: 8px;
-            border-radius: 6px;
+        body {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 8px;
+            flex-direction: column;
         }
-        .item-info { flex: 1; min-width: 200px; font-size: 0.95rem; line-height: 1.5; }
-        .item-info strong { font-size: 1.05rem; }
-        .item-actions { display: flex; gap: 8px; }
-        .item-actions button { padding: 8px 14px; font-size: 0.85rem; }
-        .expired { background: #ffcdd2; }
-        .urgent { background: #ffe0b2; }
-        .warning { background: #fff9c4; }
-        .fresh { background: #c8e6c9; }
-        .empty { color: #888; text-align: center; margin-top: 24px; }
+
+        /* --- Header --- */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: #16213e;
+            border-bottom: 1px solid #0f3460;
+            flex-shrink: 0;
+        }
+        .header h1 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #fff;
+        }
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        #clock {
+            font-size: 1rem;
+            color: #a0a0a0;
+            font-variant-numeric: tabular-nums;
+        }
+        .btn-custom {
+            background: #00b4d8;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 18px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .btn-custom:active { opacity: 0.8; }
+
+        /* --- Filter Tabs --- */
+        .filter-bar {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 10px 16px;
+            flex-shrink: 0;
+            background: #1a1a2e;
+            scrollbar-width: none;
+        }
+        .filter-bar::-webkit-scrollbar { display: none; }
+        .filter-tab {
+            background: #0f3460;
+            color: #a0a0a0;
+            border: none;
+            border-radius: 24px;
+            padding: 10px 20px;
+            white-space: nowrap;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            flex-shrink: 0;
+            min-height: 42px;
+        }
+        .filter-tab.active {
+            background: #00b4d8;
+            color: #fff;
+        }
+        .filter-tab:active { opacity: 0.8; }
+
+        /* --- Item Grid --- */
+        .grid-area {
+            flex: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 8px 16px 16px;
+        }
+        .item-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 12px;
+        }
+        .item-btn {
+            background: #16213e;
+            border: 2px solid #0f3460;
+            border-radius: 12px;
+            color: #e0e0e0;
+            padding: 16px 10px;
+            min-height: 80px;
+            font-size: 1.05rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            gap: 6px;
+            transition: background 0.12s, transform 0.1s, opacity 0.12s;
+        }
+        .item-btn:active {
+            background: #00b4d8;
+            transform: scale(0.95);
+        }
+        .item-btn.busy {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+        .item-btn .shelf {
+            font-size: 0.75rem;
+            font-weight: 400;
+            color: #a0a0a0;
+        }
+        .empty-grid {
+            text-align: center;
+            color: #666;
+            padding: 48px 16px;
+            font-size: 1rem;
+        }
+
+        /* --- Dashboard --- */
+        .dashboard {
+            flex-shrink: 0;
+            background: #16213e;
+            border-top: 1px solid #0f3460;
+            max-height: 45vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .dash-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 16px;
+            cursor: pointer;
+            min-height: 48px;
+        }
+        .dash-header h2 {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+        .dash-badge {
+            background: #ef4444;
+            color: #fff;
+            border-radius: 12px;
+            padding: 2px 10px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            min-width: 24px;
+            text-align: center;
+        }
+        .dash-badge.ok { background: #22c55e; }
+        .dash-toggle {
+            background: none;
+            border: none;
+            color: #a0a0a0;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 4px 8px;
+        }
+        .dash-body {
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 0 16px 12px;
+        }
+        .dashboard.collapsed .dash-body { display: none; }
+        .active-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            border-left: 5px solid transparent;
+            background: rgba(255,255,255,0.03);
+            flex-wrap: wrap;
+        }
+        .active-item.expired  { border-left-color: #ef4444; background: rgba(239,68,68,0.1); }
+        .active-item.urgent   { border-left-color: #f59e0b; background: rgba(245,158,11,0.1); }
+        .active-item.warning  { border-left-color: #eab308; background: rgba(234,179,8,0.08); }
+        .active-item.fresh    { border-left-color: #22c55e; background: rgba(34,197,94,0.08); }
+        .ai-info { flex: 1; min-width: 180px; font-size: 0.9rem; line-height: 1.5; }
+        .ai-info strong { font-size: 1rem; color: #fff; }
+        .ai-info .dates { color: #a0a0a0; font-size: 0.8rem; }
+        .ai-info .status-expired { color: #ef4444; font-weight: 700; }
+        .ai-info .status-today { color: #f59e0b; font-weight: 700; }
+        .ai-actions { display: flex; gap: 8px; flex-shrink: 0; }
+        .btn-done, .btn-reprint {
+            border: none;
+            border-radius: 8px;
+            padding: 10px 16px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            color: #fff;
+            min-height: 42px;
+        }
+        .btn-done { background: #22c55e; }
+        .btn-done:active { background: #16a34a; }
+        .btn-reprint { background: #f59e0b; }
+        .btn-reprint:active { background: #d97706; }
+
+        /* --- Modal --- */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 100;
+            align-items: flex-end;
+            justify-content: center;
+        }
+        .modal-overlay.open {
+            display: flex;
+        }
+        .modal {
+            background: #16213e;
+            width: 100%;
+            max-width: 500px;
+            border-radius: 16px 16px 0 0;
+            padding: 24px 20px 32px;
+            animation: slideUp 0.25s ease-out;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        .modal h2 {
+            font-size: 1.15rem;
+            margin-bottom: 16px;
+            color: #fff;
+        }
+        .modal-close {
+            float: right;
+            background: none;
+            border: none;
+            color: #a0a0a0;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0 4px;
+            line-height: 1;
+        }
+        .field { margin-bottom: 14px; }
+        .field label {
+            display: block;
+            font-size: 0.85rem;
+            color: #a0a0a0;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+        .field input, .field select {
+            width: 100%;
+            padding: 12px;
+            font-size: 1rem;
+            border: 2px solid #0f3460;
+            border-radius: 8px;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            outline: none;
+        }
+        .field input:focus, .field select:focus { border-color: #00b4d8; }
+        #new-cat-field { display: none; margin-top: 8px; }
+        .modal-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 18px;
+        }
+        .modal-btn {
+            border: none;
+            border-radius: 10px;
+            padding: 14px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            color: #fff;
+            min-height: 50px;
+        }
+        .modal-btn:active { opacity: 0.8; }
+        .modal-btn.primary { background: #00b4d8; }
+        .modal-btn.secondary { background: #0f3460; }
+        .modal-btn.tertiary { background: #374151; }
+
+        /* --- Toast --- */
+        .toast {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #fff;
+            z-index: 200;
+            animation: toastIn 0.3s ease-out, toastOut 0.3s 2.2s ease-in forwards;
+            pointer-events: none;
+            text-align: center;
+            max-width: 90%;
+        }
+        .toast.success { background: #22c55e; }
+        .toast.warn { background: #f59e0b; }
+        .toast.error { background: #ef4444; }
+        @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(-20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+        @keyframes toastOut { from { opacity: 1; } to { opacity: 0; } }
+
+        /* --- Responsive --- */
+        @media (max-width: 400px) {
+            .item-grid { grid-template-columns: repeat(2, 1fr); }
+            .item-btn { min-height: 70px; font-size: 0.95rem; }
+        }
+        @media (min-width: 700px) {
+            .item-grid { grid-template-columns: repeat(4, 1fr); }
+        }
+        @media (min-width: 1024px) {
+            .item-grid { grid-template-columns: repeat(5, 1fr); }
+        }
     </style>
 </head>
 <body>
-    <h1>Food Tracker</h1>
-
-    <form action="/add" method="POST">
-        <div class="form-group">
-            <label for="name">Food Name</label>
-            <input type="text" id="name" name="name" list="food-names"
-                   placeholder="e.g. Chicken breast" required autocomplete="off">
-            <datalist id="food-names">
-                {% for n in names %}
-                <option value="{{ n['name'] }}">
-                {% endfor %}
-            </datalist>
-        </div>
-        <div class="form-group">
-            <label for="shelf_life">Shelf Life (days)</label>
-            <input type="number" id="shelf_life" name="shelf_life"
-                   min="0" max="365" placeholder="e.g. 7" required>
-        </div>
-        <button type="submit" class="btn-add">Add &amp; Print</button>
-    </form>
-
-    <h2>Active Items</h2>
-
-    {% if items %}
-    {% for item in items %}
-    <div class="item {% if item.days_left < 0 %}expired{% elif item.days_left <= 2 %}urgent{% elif item.days_left <= 5 %}warning{% else %}fresh{% endif %}">
-        <div class="item-info">
-            <strong>{{ item.name }}</strong><br>
-            Stored: {{ item.stored_date }} &middot; Use by: {{ item.expiration_date }}
-            &middot;
-            {% if item.days_left < 0 %}
-                <strong>EXPIRED {{ -item.days_left }}d ago</strong>
-            {% elif item.days_left == 0 %}
-                <strong>TODAY</strong>
-            {% else %}
-                {{ item.days_left }}d left
-            {% endif %}
-        </div>
-        <div class="item-actions">
-            <form action="/done/{{ item.id }}" method="POST">
-                <button type="submit" class="btn-done">Done</button>
-            </form>
-            <form action="/print/{{ item.id }}" method="POST">
-                <button type="submit" class="btn-reprint">Reprint</button>
-            </form>
+    <!-- Header -->
+    <div class="header">
+        <h1>Kitchen Tracker</h1>
+        <div class="header-right">
+            <span id="clock"></span>
+            <button class="btn-custom" onclick="openModal()">+ Custom</button>
         </div>
     </div>
-    {% endfor %}
-    {% else %}
-    <p class="empty">No active items. Add something above.</p>
-    {% endif %}
+
+    <!-- Filter Tabs -->
+    <div class="filter-bar">
+        <button class="filter-tab active" data-filter="recent">Recent</button>
+        <button class="filter-tab" data-filter="most-used">Most Used</button>
+        {% for cat in category_names %}
+        <button class="filter-tab" data-filter="cat-{{ cat }}">{{ cat }}</button>
+        {% endfor %}
+        <button class="filter-tab" data-filter="all">All</button>
+    </div>
+
+    <!-- Item Grid -->
+    <div class="grid-area">
+        {% if catalog %}
+        <div class="item-grid" id="item-grid">
+            {% for item in catalog %}
+            <button class="item-btn"
+                    data-name="{{ item.name }}"
+                    data-category="{{ item.category }}"
+                    data-use-count="{{ item.use_count }}"
+                    data-updated="{{ item.updated_at }}"
+                    onclick="quickAdd(this)">
+                {{ item.name }}
+                <span class="shelf">{{ item.shelf_life_days }}d shelf life</span>
+            </button>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-grid">
+            No items in catalog yet.<br>Tap <strong>+ Custom</strong> to add your first item.
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Active Items Dashboard -->
+    <div class="dashboard {% if not items %}collapsed{% endif %}" id="dashboard">
+        <div class="dash-header" onclick="toggleDash()">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <h2>Active Items</h2>
+                <span class="dash-badge {% if items|length == 0 %}ok{% endif %}" id="dash-count">{{ items|length }}</span>
+            </div>
+            <button class="dash-toggle" id="dash-arrow">&#9650;</button>
+        </div>
+        <div class="dash-body" id="dash-body">
+            {% for item in items %}
+            <div class="active-item {% if item.days_left < 0 %}expired{% elif item.days_left <= 2 %}urgent{% elif item.days_left <= 5 %}warning{% else %}fresh{% endif %}" id="ai-{{ item.id }}">
+                <div class="ai-info">
+                    <strong>{{ item.name }}</strong>
+                    {% if item.days_left < 0 %}
+                        <span class="status-expired"> &mdash; EXPIRED {{ -item.days_left }}d ago</span>
+                    {% elif item.days_left == 0 %}
+                        <span class="status-today"> &mdash; EXPIRES TODAY</span>
+                    {% else %}
+                        &mdash; {{ item.days_left }}d left
+                    {% endif %}
+                    <br>
+                    <span class="dates">Stored: {{ item.stored_date }} &middot; Use by: {{ item.expiration_date }}</span>
+                </div>
+                <div class="ai-actions">
+                    <button class="btn-done" onclick="markDone({{ item.id }})">Done</button>
+                    <button class="btn-reprint" onclick="reprintItem({{ item.id }})">Reprint</button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Custom Item Modal -->
+    <div class="modal-overlay" id="modal-overlay" onclick="closeModalOverlay(event)">
+        <div class="modal">
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+            <h2>Custom Item</h2>
+            <div class="field">
+                <label for="m-name">Item Name</label>
+                <input type="text" id="m-name" placeholder="e.g. Chicken Breast" autocomplete="off">
+            </div>
+            <div class="field">
+                <label for="m-shelf">Shelf Life (days)</label>
+                <input type="number" id="m-shelf" min="0" max="365" placeholder="e.g. 7" value="7">
+            </div>
+            <div class="field">
+                <label for="m-category">Category</label>
+                <select id="m-category" onchange="onCatChange()">
+                    {% for cat in category_names %}
+                    <option value="{{ cat }}">{{ cat }}</option>
+                    {% endfor %}
+                    <option value="Other">Other</option>
+                    <option value="__new__">New Category...</option>
+                </select>
+            </div>
+            <div class="field" id="new-cat-field">
+                <label for="m-new-cat">New Category Name</label>
+                <input type="text" id="m-new-cat" placeholder="e.g. Proteins">
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn primary" onclick="modalAction('add-print')">Add to Catalog &amp; Print</button>
+                <button class="modal-btn secondary" onclick="modalAction('add')">Add to Catalog Only</button>
+                <button class="modal-btn tertiary" onclick="modalAction('print-once')">Print Once (no save)</button>
+            </div>
+        </div>
+    </div>
 
     <script>
-        (function () {
-            var nameInput = document.getElementById("name");
-            var shelfInput = document.getElementById("shelf_life");
-            var autoFilled = null;
+    /* ---- Toast ---- */
+    function showToast(msg, type) {
+        var t = document.createElement('div');
+        t.className = 'toast ' + (type || 'success');
+        t.textContent = msg;
+        document.body.appendChild(t);
+        setTimeout(function() { t.remove(); }, 2600);
+    }
 
-            nameInput.addEventListener("input", function () {
-                var val = nameInput.value;
-                var options = document.querySelectorAll("#food-names option");
-                var match = false;
-                for (var i = 0; i < options.length; i++) {
-                    if (options[i].value === val) { match = true; break; }
-                }
-                if (!match) return;
+    /* ---- Quick Add (one-tap) ---- */
+    function quickAdd(btn) {
+        if (btn.classList.contains('busy')) return;
+        btn.classList.add('busy');
+        var name = btn.dataset.name;
+        fetch('/api/quick-add', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name: name})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.classList.remove('busy');
+            if (!data.ok) {
+                showToast(data.error || 'Failed', 'error');
+                return;
+            }
+            if (data.printed) {
+                showToast('Printed: ' + data.item.name, 'success');
+            } else {
+                showToast('Saved \u2014 print failed', 'warn');
+            }
+            addActiveItemToDOM(data.item);
+        })
+        .catch(function() {
+            btn.classList.remove('busy');
+            showToast('Request failed', 'error');
+        });
+    }
 
-                fetch("/shelf-life/" + encodeURIComponent(val))
-                    .then(function (r) { return r.json(); })
-                    .then(function (data) {
-                        if (data.days !== null && (shelfInput.value === "" || shelfInput.value === String(autoFilled))) {
-                            shelfInput.value = data.days;
-                            autoFilled = data.days;
-                        }
+    /* ---- Dashboard ---- */
+    function toggleDash() {
+        document.getElementById('dashboard').classList.toggle('collapsed');
+        var arrow = document.getElementById('dash-arrow');
+        arrow.innerHTML = document.getElementById('dashboard').classList.contains('collapsed') ? '&#9660;' : '&#9650;';
+    }
+
+    function updateDashCount() {
+        var items = document.querySelectorAll('#dash-body .active-item');
+        var badge = document.getElementById('dash-count');
+        badge.textContent = items.length;
+        badge.className = 'dash-badge' + (items.length === 0 ? ' ok' : '');
+    }
+
+    function addActiveItemToDOM(item) {
+        var cls = 'fresh';
+        if (item.days_left < 0) cls = 'expired';
+        else if (item.days_left <= 2) cls = 'urgent';
+        else if (item.days_left <= 5) cls = 'warning';
+
+        var statusHtml = '';
+        if (item.days_left < 0) {
+            statusHtml = '<span class="status-expired"> \u2014 EXPIRED ' + (-item.days_left) + 'd ago</span>';
+        } else if (item.days_left === 0) {
+            statusHtml = '<span class="status-today"> \u2014 EXPIRES TODAY</span>';
+        } else {
+            statusHtml = ' \u2014 ' + item.days_left + 'd left';
+        }
+
+        var div = document.createElement('div');
+        div.className = 'active-item ' + cls;
+        div.id = 'ai-' + item.id;
+        div.innerHTML =
+            '<div class="ai-info">' +
+                '<strong>' + item.name + '</strong>' + statusHtml + '<br>' +
+                '<span class="dates">Stored: ' + item.stored_date + ' &middot; Use by: ' + item.expiration_date + '</span>' +
+            '</div>' +
+            '<div class="ai-actions">' +
+                '<button class="btn-done" onclick="markDone(' + item.id + ')">Done</button>' +
+                '<button class="btn-reprint" onclick="reprintItem(' + item.id + ')">Reprint</button>' +
+            '</div>';
+
+        var body = document.getElementById('dash-body');
+        body.insertBefore(div, body.firstChild);
+
+        // Expand dashboard if collapsed
+        document.getElementById('dashboard').classList.remove('collapsed');
+        document.getElementById('dash-arrow').innerHTML = '&#9650;';
+        updateDashCount();
+    }
+
+    /* ---- Done / Reprint ---- */
+    function markDone(id) {
+        fetch('/done/' + id, {method: 'POST', headers: {'X-Requested-With': 'fetch'}})
+        .then(function(r) { return r.json(); })
+        .then(function() {
+            var el = document.getElementById('ai-' + id);
+            if (el) el.remove();
+            updateDashCount();
+        })
+        .catch(function() { showToast('Failed to mark done', 'error'); });
+    }
+
+    function reprintItem(id) {
+        fetch('/print/' + id, {method: 'POST', headers: {'X-Requested-With': 'fetch'}})
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.printed) showToast('Reprinted!', 'success');
+            else showToast('Reprint failed', 'error');
+        })
+        .catch(function() { showToast('Reprint failed', 'error'); });
+    }
+
+    /* ---- Filter Tabs ---- */
+    (function() {
+        var tabs = document.querySelectorAll('.filter-tab');
+        var btns = document.querySelectorAll('.item-btn');
+
+        function sortButtons(compareFn) {
+            var grid = document.getElementById('item-grid');
+            if (!grid) return;
+            var arr = Array.prototype.slice.call(btns);
+            arr.sort(compareFn);
+            arr.forEach(function(b) { grid.appendChild(b); });
+        }
+
+        tabs.forEach(function(tab) {
+            tab.addEventListener('click', function() {
+                document.querySelector('.filter-tab.active').classList.remove('active');
+                tab.classList.add('active');
+                var f = tab.dataset.filter;
+
+                btns.forEach(function(b) { b.style.display = ''; });
+
+                if (f === 'all') {
+                    sortButtons(function(a, b) { return a.dataset.name.localeCompare(b.dataset.name); });
+                } else if (f === 'recent') {
+                    sortButtons(function(a, b) { return b.dataset.updated.localeCompare(a.dataset.updated); });
+                } else if (f === 'most-used') {
+                    sortButtons(function(a, b) { return parseInt(b.dataset.useCount) - parseInt(a.dataset.useCount); });
+                } else if (f.indexOf('cat-') === 0) {
+                    var cat = f.substring(4);
+                    btns.forEach(function(b) {
+                        b.style.display = (b.dataset.category === cat) ? '' : 'none';
                     });
+                }
             });
-        })();
+        });
+    })();
+
+    /* ---- Modal ---- */
+    function openModal() {
+        document.getElementById('modal-overlay').classList.add('open');
+        document.getElementById('m-name').value = '';
+        document.getElementById('m-shelf').value = '7';
+        document.getElementById('m-category').value = 'Other';
+        document.getElementById('new-cat-field').style.display = 'none';
+        setTimeout(function() { document.getElementById('m-name').focus(); }, 300);
+    }
+    function closeModal() {
+        document.getElementById('modal-overlay').classList.remove('open');
+    }
+    function closeModalOverlay(e) {
+        if (e.target === document.getElementById('modal-overlay')) closeModal();
+    }
+    function onCatChange() {
+        var sel = document.getElementById('m-category');
+        document.getElementById('new-cat-field').style.display = sel.value === '__new__' ? 'block' : 'none';
+    }
+
+    function getModalCategory() {
+        var sel = document.getElementById('m-category').value;
+        if (sel === '__new__') {
+            var nc = document.getElementById('m-new-cat').value.trim();
+            return nc || 'Other';
+        }
+        return sel;
+    }
+
+    function modalAction(action) {
+        var name = document.getElementById('m-name').value.trim();
+        var shelf = parseInt(document.getElementById('m-shelf').value) || 7;
+        var category = getModalCategory();
+        if (!name) { showToast('Enter an item name', 'error'); return; }
+
+        if (action === 'print-once') {
+            fetch('/api/print-once', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: name, shelf_life_days: shelf})
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.printed) showToast('Printed: ' + name, 'success');
+                else showToast('Print failed', 'error');
+                closeModal();
+            })
+            .catch(function() { showToast('Request failed', 'error'); });
+        } else if (action === 'add') {
+            fetch('/api/catalog', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: name, category: category, shelf_life_days: shelf})
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.ok) {
+                    showToast('Added: ' + data.name, 'success');
+                    addCatalogButton(data.name, category, shelf);
+                }
+                closeModal();
+            })
+            .catch(function() { showToast('Request failed', 'error'); });
+        } else if (action === 'add-print') {
+            // First add to catalog, then quick-add to create item + print
+            fetch('/api/catalog', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: name, category: category, shelf_life_days: shelf})
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.ok) { showToast('Failed to save', 'error'); return; }
+                addCatalogButton(data.name, category, shelf);
+                return fetch('/api/quick-add', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name: data.name})
+                });
+            })
+            .then(function(r) { if (r) return r.json(); })
+            .then(function(data) {
+                if (!data) return;
+                if (data.printed) showToast('Printed: ' + data.item.name, 'success');
+                else showToast('Saved \u2014 print failed', 'warn');
+                addActiveItemToDOM(data.item);
+                closeModal();
+            })
+            .catch(function() { showToast('Request failed', 'error'); });
+        }
+    }
+
+    function addCatalogButton(name, category, shelf) {
+        var grid = document.getElementById('item-grid');
+        if (!grid) {
+            // Grid didn't exist (empty state), replace the empty message
+            var area = document.querySelector('.grid-area');
+            area.innerHTML = '<div class="item-grid" id="item-grid"></div>';
+            grid = document.getElementById('item-grid');
+        }
+        // Check if button already exists
+        var existing = grid.querySelector('[data-name="' + name + '"]');
+        if (existing) return;
+
+        var btn = document.createElement('button');
+        btn.className = 'item-btn';
+        btn.dataset.name = name;
+        btn.dataset.category = category;
+        btn.dataset.useCount = '0';
+        btn.dataset.updated = new Date().toISOString().slice(0, 10);
+        btn.setAttribute('onclick', 'quickAdd(this)');
+        btn.innerHTML = name + '<span class="shelf">' + shelf + 'd shelf life</span>';
+        grid.insertBefore(btn, grid.firstChild);
+    }
+
+    /* ---- Clock ---- */
+    function updateClock() {
+        var el = document.getElementById('clock');
+        el.textContent = new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+    }
+    updateClock();
+    setInterval(updateClock, 30000);
     </script>
 </body>
 </html>
