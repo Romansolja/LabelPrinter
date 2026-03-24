@@ -67,6 +67,19 @@ def init_db():
         )
         """
     )
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL DEFAULT (date('now'))
+        )
+        """
+    )
+    # Ensure "Other" always exists
+    db.execute("INSERT OR IGNORE INTO categories (name) VALUES ('Other')")
+
     # Seed catalog from existing items history (one-time, idempotent).
     # INSERT OR IGNORE means rows already in catalog are untouched on restart.
     # We normalize names in Python (title-case) because SQL can't do that.
@@ -91,6 +104,10 @@ def init_db():
             """,
             (normalized, row[1], row[2], row[3], row[4]),
         )
+    # Seed categories from existing catalog rows
+    existing_cats = db.execute("SELECT DISTINCT category FROM catalog").fetchall()
+    for cat_row in existing_cats:
+        db.execute("INSERT OR IGNORE INTO categories (name) VALUES (?)", (cat_row[0],))
     db.commit()
     db.close()
 
@@ -178,8 +195,12 @@ def index():
             categories[cat] = []
         categories[cat].append(entry)
 
-    # Distinct category names for the modal dropdown
-    category_names = sorted(categories.keys())
+    # Distinct category names: merge categories table + catalog rows
+    saved_cats = db.execute("SELECT name FROM categories WHERE is_active = 1").fetchall()
+    all_cat_names = set(categories.keys())
+    for cat_row in saved_cats:
+        all_cat_names.add(cat_row["name"])
+    category_names = sorted(all_cat_names)
 
     today = date.today()
     items = []
@@ -300,6 +321,7 @@ def add_catalog():
         category = "Other"
 
     db = get_db()
+    db.execute("INSERT OR IGNORE INTO categories (name) VALUES (?)", (category,))
     db.execute(
         """
         INSERT INTO catalog (name, category, shelf_life_days)
@@ -398,6 +420,7 @@ def update_catalog_item(catalog_id):
         category = "Other"
 
     # Don't update updated_at here — that's only for actual usage
+    db.execute("INSERT OR IGNORE INTO categories (name) VALUES (?)", (category,))
     db.execute(
         "UPDATE catalog SET name = ?, category = ?, shelf_life_days = ? WHERE id = ?",
         (name, category, shelf_life_val, catalog_id),
@@ -409,9 +432,7 @@ def update_catalog_item(catalog_id):
 
 @app.route("/api/category", methods=["POST"])
 def add_category():
-    """Create a new category by name. Just validates and returns — categories
-    exist implicitly via catalog items, but this endpoint lets the UI confirm
-    the name is valid before assigning items to it."""
+    """Create a new category and persist it to the categories table."""
     data = request.get_json()
     if not data:
         return jsonify({"ok": False, "error": "Invalid request"}), 400
@@ -420,6 +441,13 @@ def add_category():
         return jsonify({"ok": False, "error": "Category name cannot be empty"}), 400
     if name == "Other":
         return jsonify({"ok": False, "error": "'Other' already exists"}), 400
+    db = get_db()
+    existing = db.execute("SELECT id FROM categories WHERE name = ?", (name,)).fetchone()
+    if existing:
+        return jsonify({"ok": False, "error": "Category already exists"}), 400
+    db.execute("INSERT INTO categories (name) VALUES (?)", (name,))
+    db.commit()
+    bump_catalog_version()
     return jsonify({"ok": True, "category": name})
 
 
@@ -436,10 +464,14 @@ def rename_category():
         return jsonify({"ok": False, "error": "Cannot rename 'Other'"}), 400
 
     db = get_db()
+    cat_row = db.execute("SELECT id FROM categories WHERE name = ?", (old_name,)).fetchone()
     count = db.execute("SELECT COUNT(*) FROM catalog WHERE category = ?", (old_name,)).fetchone()[0]
-    if count == 0:
+    if not cat_row and count == 0:
         return jsonify({"ok": False, "error": "Category not found"}), 404
     db.execute("UPDATE catalog SET category = ? WHERE category = ?", (new_name, old_name))
+    db.execute("UPDATE categories SET name = ? WHERE name = ?", (new_name, old_name))
+    # Ensure the new name exists in categories even if only catalog rows had it
+    db.execute("INSERT OR IGNORE INTO categories (name) VALUES (?)", (new_name,))
     db.commit()
     bump_catalog_version()
     return jsonify({"ok": True, "old_name": old_name, "new_name": new_name, "items_moved": count})
@@ -461,10 +493,12 @@ def delete_category():
         move_to = "Other"
 
     db = get_db()
+    cat_row = db.execute("SELECT id FROM categories WHERE name = ?", (name,)).fetchone()
     count = db.execute("SELECT COUNT(*) FROM catalog WHERE category = ?", (name,)).fetchone()[0]
-    if count == 0:
+    if not cat_row and count == 0:
         return jsonify({"ok": False, "error": "Category not found"}), 404
     db.execute("UPDATE catalog SET category = ? WHERE category = ?", (move_to, name))
+    db.execute("DELETE FROM categories WHERE name = ?", (name,))
     db.commit()
     bump_catalog_version()
     return jsonify({"ok": True, "deleted": name, "moved_to": move_to, "items_moved": count})

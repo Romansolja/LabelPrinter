@@ -586,6 +586,7 @@
             ensureCategoryOption(data.category);
             showToast('Category added: ' + data.category, 'success');
             closeSheet('add-cat-modal');
+            refreshSyncVersion();
         })
         .catch(function() { showToast('REQUEST FAILED \u2014 check connection', 'error'); });
     }
