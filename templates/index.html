@@ -608,12 +608,15 @@
         location.reload();
     }
 
+    var manageCategoryList = [];
+
     function loadManageCatalog() {
         fetch('/api/catalog/all')
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            manageCatalogData = data;
-            renderManageList(data);
+            manageCatalogData = data.items;
+            manageCategoryList = data.categories || [];
+            renderManageList(manageCatalogData);
         })
         .catch(function() { showToast('REQUEST FAILED \u2014 check connection', 'error'); });
     }
@@ -635,6 +638,10 @@
             var cat = item.category;
             if (!groups[cat]) groups[cat] = [];
             groups[cat].push(item);
+        });
+        // Include empty categories from the categories table
+        manageCategoryList.forEach(function(cat) {
+            if (!groups[cat]) groups[cat] = [];
         });
 
         var html = '';
@@ -829,6 +836,9 @@
         var allCats = [];
         manageCatalogData.forEach(function(i) {
             if (allCats.indexOf(i.category) === -1 && i.category !== cat) allCats.push(i.category);
+        });
+        manageCategoryList.forEach(function(c) {
+            if (allCats.indexOf(c) === -1 && c !== cat) allCats.push(c);
         });
         if (allCats.indexOf('Other') === -1) allCats.push('Other');
         allCats.sort();

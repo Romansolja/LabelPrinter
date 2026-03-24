@@ -516,7 +516,11 @@ def get_all_catalog():
     rows = db.execute(
         "SELECT * FROM catalog ORDER BY category, name"
     ).fetchall()
-    return jsonify([dict(r) for r in rows])
+    catalog_items = [dict(r) for r in rows]
+    # Include all saved categories so empty ones appear in manage view
+    cat_rows = db.execute("SELECT name FROM categories WHERE is_active = 1 ORDER BY name").fetchall()
+    all_categories = [r["name"] for r in cat_rows]
+    return jsonify({"items": catalog_items, "categories": all_categories})
 
 
 @app.route("/done/<int:item_id>", methods=["POST"])
