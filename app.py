@@ -8,6 +8,13 @@ from flask import Flask, g, jsonify, redirect, render_template, request, url_for
 app = Flask(__name__)
 DATABASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "food.db")
 
+CATALOG_VERSION = 0
+
+
+def bump_catalog_version():
+    global CATALOG_VERSION
+    CATALOG_VERSION += 1
+
 
 def _normalize_name(name):
     """Strip whitespace and title-case so 'chicken', 'CHICKEN', '  Chicken  ' all become 'Chicken'."""
@@ -225,6 +232,7 @@ def add():
     )
     _upsert_catalog(db, name, shelf_life_val)
     db.commit()
+    bump_catalog_version()
     print_label(name, today, expiration)
     return redirect(url_for("index"))
 
@@ -255,6 +263,7 @@ def quick_add():
     )
     _upsert_catalog(db, name, shelf_life_val)
     db.commit()
+    bump_catalog_version()
 
     printed = print_label(name, today, expiration)
     item_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -302,6 +311,7 @@ def add_catalog():
         (name, category, shelf_life_val),
     )
     db.commit()
+    bump_catalog_version()
     return jsonify({"ok": True, "name": name, "category": category, "shelf_life_days": shelf_life_val})
 
 
@@ -334,6 +344,7 @@ def deactivate_catalog(catalog_id):
         return jsonify({"ok": False, "error": "Item not found"}), 404
     db.execute("UPDATE catalog SET is_active = 0 WHERE id = ?", (catalog_id,))
     db.commit()
+    bump_catalog_version()
     return jsonify({"ok": True, "name": row["name"]})
 
 
@@ -345,6 +356,7 @@ def activate_catalog(catalog_id):
         return jsonify({"ok": False, "error": "Item not found"}), 404
     db.execute("UPDATE catalog SET is_active = 1 WHERE id = ?", (catalog_id,))
     db.commit()
+    bump_catalog_version()
     return jsonify({"ok": True, "name": row["name"]})
 
 
@@ -357,6 +369,7 @@ def delete_catalog(catalog_id):
         return jsonify({"ok": False, "error": "Item not found"}), 404
     db.execute("DELETE FROM catalog WHERE id = ?", (catalog_id,))
     db.commit()
+    bump_catalog_version()
     return jsonify({"ok": True, "name": row["name"]})
 
 
@@ -390,6 +403,7 @@ def update_catalog_item(catalog_id):
         (name, category, shelf_life_val, catalog_id),
     )
     db.commit()
+    bump_catalog_version()
     return jsonify({"ok": True, "id": catalog_id, "name": name, "category": category, "shelf_life_days": shelf_life_val})
 
 
@@ -427,6 +441,7 @@ def rename_category():
         return jsonify({"ok": False, "error": "Category not found"}), 404
     db.execute("UPDATE catalog SET category = ? WHERE category = ?", (new_name, old_name))
     db.commit()
+    bump_catalog_version()
     return jsonify({"ok": True, "old_name": old_name, "new_name": new_name, "items_moved": count})
 
 
@@ -451,7 +466,13 @@ def delete_category():
         return jsonify({"ok": False, "error": "Category not found"}), 404
     db.execute("UPDATE catalog SET category = ? WHERE category = ?", (move_to, name))
     db.commit()
+    bump_catalog_version()
     return jsonify({"ok": True, "deleted": name, "moved_to": move_to, "items_moved": count})
+
+
+@app.route("/api/sync-state")
+def sync_state():
+    return jsonify({"catalog_version": CATALOG_VERSION})
 
 
 @app.route("/api/catalog/all")

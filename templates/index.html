@@ -466,6 +466,9 @@
     }
     function closeSheet(id) {
         document.getElementById(id).classList.remove('open');
+        if (pendingReload && !isModalOpen()) {
+            location.reload();
+        }
     }
 
     /* ==================================================================
@@ -522,6 +525,7 @@
                 showToast('Added: ' + data.name, 'success');
                 addCatalogButton(data.name, data.category, data.shelf_life_days);
                 closeSheet('add-item-modal');
+                refreshSyncVersion();
             })
             .catch(function() { showToast('REQUEST FAILED \u2014 check connection', 'error'); });
 
@@ -537,6 +541,7 @@
                     return Promise.reject('catalog_failed');
                 }
                 addCatalogButton(catData.name, catData.category, catData.shelf_life_days);
+                refreshSyncVersion();
                 return fetch('/api/quick-add', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({name: catData.name})
@@ -549,6 +554,7 @@
                 else showToast('Saved \u2014 PRINT FAILED, use Reprint', 'warn');
                 addActiveItemToDOM(data.item);
                 closeSheet('add-item-modal');
+                refreshSyncVersion();
             })
             .catch(function(err) {
                 if (err !== 'catalog_failed') showToast('REQUEST FAILED \u2014 check connection', 'error');
@@ -717,6 +723,7 @@
             if (!data.ok) { showToast('ERROR: ' + (data.error || 'Save failed'), 'error'); return; }
             showToast('Updated: ' + data.name, 'success');
             loadManageCatalog();
+            refreshSyncVersion();
         })
         .catch(function() { showToast('REQUEST FAILED \u2014 check connection', 'error'); });
     }
@@ -729,6 +736,7 @@
             if (!data.ok) { showToast('ERROR: ' + (data.error || 'Failed'), 'error'); return; }
             showToast('Hidden: ' + data.name, 'success');
             loadManageCatalog();
+            refreshSyncVersion();
         })
         .catch(function() { showToast('REQUEST FAILED \u2014 check connection', 'error'); });
     }
@@ -740,6 +748,7 @@
             if (!data.ok) { showToast('ERROR: ' + (data.error || 'Failed'), 'error'); return; }
             showToast('Restored: ' + data.name, 'success');
             loadManageCatalog();
+            refreshSyncVersion();
         })
         .catch(function() { showToast('REQUEST FAILED \u2014 check connection', 'error'); });
     }
@@ -768,6 +777,7 @@
             if (!data.ok) { showToast('ERROR: ' + (data.error || 'Delete failed'), 'error'); return; }
             showToast('Deleted: ' + data.name, 'success');
             loadManageCatalog();
+            refreshSyncVersion();
         })
         .catch(function() { showToast('REQUEST FAILED \u2014 check connection', 'error'); });
     }
@@ -803,6 +813,7 @@
             if (!data.ok) { showToast('ERROR: ' + (data.error || 'Rename failed'), 'error'); return; }
             showToast('Renamed: ' + oldName + ' \u2192 ' + data.new_name + ' (' + data.items_moved + ' items)', 'success');
             loadManageCatalog();
+            refreshSyncVersion();
         })
         .catch(function() { showToast('REQUEST FAILED \u2014 check connection', 'error'); });
     }
@@ -847,6 +858,7 @@
             if (!data.ok) { showToast('ERROR: ' + (data.error || 'Delete failed'), 'error'); return; }
             showToast('Deleted ' + cat + ' \u2014 ' + data.items_moved + ' items moved to ' + data.moved_to, 'success');
             loadManageCatalog();
+            refreshSyncVersion();
         })
         .catch(function() { showToast('REQUEST FAILED \u2014 check connection', 'error'); });
     }
@@ -872,6 +884,7 @@
             btn.dataset.useCount = String(count);
             btn.dataset.updated = new Date().toISOString().slice(0, 10);
             addActiveItemToDOM(data.item);
+            refreshSyncVersion();
         })
         .catch(function() {
             btn.classList.remove('busy');
@@ -1045,6 +1058,45 @@
     }
     updateClock();
     setInterval(updateClock, 30000);
+
+    /* ==================================================================
+       AUTO-SYNC (light polling)
+    ================================================================== */
+    var lastCatalogVersion = null;
+    var pendingReload = false;
+
+    function refreshSyncVersion() {
+        return fetch('/api/sync-state')
+            .then(function(r) { return r.json(); })
+            .then(function(d) { lastCatalogVersion = d.catalog_version; });
+    }
+
+    function isModalOpen() {
+        return document.querySelector('.overlay.open') !== null;
+    }
+
+    function checkForUpdates() {
+        fetch('/api/sync-state')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (lastCatalogVersion === null) {
+                lastCatalogVersion = d.catalog_version;
+            } else if (d.catalog_version !== lastCatalogVersion) {
+                if (isModalOpen()) {
+                    if (!pendingReload) {
+                        pendingReload = true;
+                        showToast('Catalog updated \u2014 will refresh when closed', 'warn');
+                    }
+                } else {
+                    location.reload();
+                }
+            }
+        })
+        .catch(function() {});
+    }
+
+    refreshSyncVersion();
+    setInterval(checkForUpdates, 5000);
     </script>
 </body>
 </html>
