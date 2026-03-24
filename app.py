@@ -60,9 +60,9 @@ def init_db():
         )
         """
     )
-    # Seed catalog from existing items history (one-time).
-    # We must normalize names in Python (title-case) because SQL can't do that,
-    # then merge duplicates that collapse to the same normalized form.
+    # Seed catalog from existing items history (one-time, idempotent).
+    # INSERT OR IGNORE means rows already in catalog are untouched on restart.
+    # We normalize names in Python (title-case) because SQL can't do that.
     seed_rows = db.execute(
         """
         SELECT
@@ -79,11 +79,8 @@ def init_db():
         normalized = row[0].strip().title()
         db.execute(
             """
-            INSERT INTO catalog (name, shelf_life_days, use_count, created_at, updated_at)
+            INSERT OR IGNORE INTO catalog (name, shelf_life_days, use_count, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(name) DO UPDATE SET
-                use_count = use_count + excluded.use_count,
-                updated_at = MAX(updated_at, excluded.updated_at)
             """,
             (normalized, row[1], row[2], row[3], row[4]),
         )
@@ -493,6 +490,7 @@ def reprint(item_id):
     return redirect(url_for("index"))
 
 
+init_db()
+
 if __name__ == "__main__":
-    init_db()
     app.run(host="0.0.0.0", port=5000, debug=False)

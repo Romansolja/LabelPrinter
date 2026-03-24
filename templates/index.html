@@ -288,7 +288,6 @@
     <!-- Filter Tabs -->
     <div class="filter-bar">
         <button class="filter-tab active" data-filter="recent">Recent</button>
-        <button class="filter-tab" data-filter="most-used">Most Used</button>
         {% for cat in category_names %}
         <button class="filter-tab" data-filter="cat-{{ cat }}">{{ cat }}</button>
         {% endfor %}
@@ -970,8 +969,6 @@
             btns.sort(function(a, b) { return a.dataset.name.localeCompare(b.dataset.name); });
         } else if (filterValue === 'recent') {
             btns.sort(function(a, b) { return b.dataset.updated.localeCompare(a.dataset.updated); });
-        } else if (filterValue === 'most-used') {
-            btns.sort(function(a, b) { return parseInt(b.dataset.useCount) - parseInt(a.dataset.useCount); });
         } else if (filterValue.indexOf('cat-') === 0) {
             var cat = filterValue.substring(4);
             btns.forEach(function(b) {
