@@ -60,20 +60,33 @@ def init_db():
         )
         """
     )
-    # Seed catalog from existing items history (one-time, INSERT OR IGNORE)
-    db.execute(
+    # Seed catalog from existing items history (one-time).
+    # We must normalize names in Python (title-case) because SQL can't do that,
+    # then merge duplicates that collapse to the same normalized form.
+    seed_rows = db.execute(
         """
-        INSERT OR IGNORE INTO catalog (name, shelf_life_days, use_count, created_at, updated_at)
         SELECT
-            TRIM(name),
-            CAST(julianday(expiration_date) - julianday(stored_date) AS INTEGER),
-            COUNT(*),
-            MIN(stored_date),
-            MAX(stored_date)
+            TRIM(name) AS raw_name,
+            CAST(julianday(expiration_date) - julianday(stored_date) AS INTEGER) AS shelf,
+            COUNT(*) AS cnt,
+            MIN(stored_date) AS first_date,
+            MAX(stored_date) AS last_date
         FROM items
         GROUP BY TRIM(name)
         """
-    )
+    ).fetchall()
+    for row in seed_rows:
+        normalized = row[0].strip().title()
+        db.execute(
+            """
+            INSERT INTO catalog (name, shelf_life_days, use_count, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(name) DO UPDATE SET
+                use_count = use_count + excluded.use_count,
+                updated_at = MAX(updated_at, excluded.updated_at)
+            """,
+            (normalized, row[1], row[2], row[3], row[4]),
+        )
     db.commit()
     db.close()
 
@@ -222,6 +235,8 @@ def add():
 @app.route("/api/quick-add", methods=["POST"])
 def quick_add():
     data = request.get_json()
+    if not data:
+        return jsonify({"ok": False, "error": "Invalid request"}), 400
     name = _normalize_name(data.get("name", ""))
     if not name:
         return jsonify({"ok": False, "error": "No name provided"}), 400
@@ -263,11 +278,20 @@ def quick_add():
 @app.route("/api/catalog", methods=["POST"])
 def add_catalog():
     data = request.get_json()
+    if not data:
+        return jsonify({"ok": False, "error": "Invalid request"}), 400
     name = _normalize_name(data.get("name", ""))
     category = data.get("category", "Other").strip().title()
-    shelf_life_val = data.get("shelf_life_days", 7)
     if not name:
         return jsonify({"ok": False, "error": "No name provided"}), 400
+    try:
+        shelf_life_val = int(data.get("shelf_life_days", 7))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "Shelf life must be a number"}), 400
+    if shelf_life_val < 0 or shelf_life_val > 365:
+        return jsonify({"ok": False, "error": "Shelf life must be 0-365 days"}), 400
+    if not category:
+        category = "Other"
 
     db = get_db()
     db.execute(
@@ -287,10 +311,17 @@ def add_catalog():
 @app.route("/api/print-once", methods=["POST"])
 def print_once():
     data = request.get_json()
+    if not data:
+        return jsonify({"ok": False, "error": "Invalid request"}), 400
     name = _normalize_name(data.get("name", ""))
-    shelf_life_val = data.get("shelf_life_days", 7)
     if not name:
         return jsonify({"ok": False, "error": "No name provided"}), 400
+    try:
+        shelf_life_val = int(data.get("shelf_life_days", 7))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "Shelf life must be a number"}), 400
+    if shelf_life_val < 0 or shelf_life_val > 365:
+        return jsonify({"ok": False, "error": "Shelf life must be 0-365 days"}), 400
 
     today = date.today()
     expiration = today + timedelta(days=shelf_life_val)

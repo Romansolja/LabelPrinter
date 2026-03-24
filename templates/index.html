@@ -475,19 +475,23 @@
         .then(function(data) {
             btn.classList.remove('busy');
             if (!data.ok) {
-                showToast(data.error || 'Failed', 'error');
+                showToast(data.error || 'Failed to add item', 'error');
                 return;
             }
             if (data.printed) {
                 showToast('Printed: ' + data.item.name, 'success');
             } else {
-                showToast('Saved \u2014 print failed', 'warn');
+                showToast('Saved \u2014 print failed!', 'warn');
             }
+            // Update button ranking data so filter sorts stay accurate
+            var count = parseInt(btn.dataset.useCount || '0') + 1;
+            btn.dataset.useCount = String(count);
+            btn.dataset.updated = new Date().toISOString().slice(0, 10);
             addActiveItemToDOM(data.item);
         })
         .catch(function() {
             btn.classList.remove('busy');
-            showToast('Request failed', 'error');
+            showToast('Request failed \u2014 check connection', 'error');
         });
     }
 
@@ -565,41 +569,42 @@
     }
 
     /* ---- Filter Tabs ---- */
-    (function() {
-        var tabs = document.querySelectorAll('.filter-tab');
-        var btns = document.querySelectorAll('.item-btn');
+    function getAllItemBtns() {
+        return Array.prototype.slice.call(document.querySelectorAll('.item-btn'));
+    }
 
-        function sortButtons(compareFn) {
-            var grid = document.getElementById('item-grid');
-            if (!grid) return;
-            var arr = Array.prototype.slice.call(btns);
-            arr.sort(compareFn);
-            arr.forEach(function(b) { grid.appendChild(b); });
-        }
+    function applyFilter(filterValue) {
+        var grid = document.getElementById('item-grid');
+        if (!grid) return;
+        var btns = getAllItemBtns();
 
-        tabs.forEach(function(tab) {
-            tab.addEventListener('click', function() {
-                document.querySelector('.filter-tab.active').classList.remove('active');
-                tab.classList.add('active');
-                var f = tab.dataset.filter;
+        // Show all first
+        btns.forEach(function(b) { b.style.display = ''; });
 
-                btns.forEach(function(b) { b.style.display = ''; });
-
-                if (f === 'all') {
-                    sortButtons(function(a, b) { return a.dataset.name.localeCompare(b.dataset.name); });
-                } else if (f === 'recent') {
-                    sortButtons(function(a, b) { return b.dataset.updated.localeCompare(a.dataset.updated); });
-                } else if (f === 'most-used') {
-                    sortButtons(function(a, b) { return parseInt(b.dataset.useCount) - parseInt(a.dataset.useCount); });
-                } else if (f.indexOf('cat-') === 0) {
-                    var cat = f.substring(4);
-                    btns.forEach(function(b) {
-                        b.style.display = (b.dataset.category === cat) ? '' : 'none';
-                    });
-                }
+        if (filterValue === 'all') {
+            btns.sort(function(a, b) { return a.dataset.name.localeCompare(b.dataset.name); });
+        } else if (filterValue === 'recent') {
+            btns.sort(function(a, b) { return b.dataset.updated.localeCompare(a.dataset.updated); });
+        } else if (filterValue === 'most-used') {
+            btns.sort(function(a, b) { return parseInt(b.dataset.useCount) - parseInt(a.dataset.useCount); });
+        } else if (filterValue.indexOf('cat-') === 0) {
+            var cat = filterValue.substring(4);
+            btns.forEach(function(b) {
+                b.style.display = (b.dataset.category === cat) ? '' : 'none';
             });
-        });
-    })();
+        }
+        btns.forEach(function(b) { grid.appendChild(b); });
+    }
+
+    // Delegate click on filter bar so dynamically added tabs work
+    document.querySelector('.filter-bar').addEventListener('click', function(e) {
+        var tab = e.target.closest('.filter-tab');
+        if (!tab) return;
+        var active = document.querySelector('.filter-tab.active');
+        if (active) active.classList.remove('active');
+        tab.classList.add('active');
+        applyFilter(tab.dataset.filter);
+    });
 
     /* ---- Modal ---- */
     function openModal() {
@@ -632,9 +637,16 @@
 
     function modalAction(action) {
         var name = document.getElementById('m-name').value.trim();
-        var shelf = parseInt(document.getElementById('m-shelf').value) || 7;
+        var shelfRaw = document.getElementById('m-shelf').value;
+        var shelf = parseInt(shelfRaw);
         var category = getModalCategory();
+
+        // Validate inputs client-side first
         if (!name) { showToast('Enter an item name', 'error'); return; }
+        if (isNaN(shelf) || shelf < 0 || shelf > 365) {
+            showToast('Shelf life must be 0\u2013365 days', 'error');
+            return;
+        }
 
         if (action === 'print-once') {
             fetch('/api/print-once', {
@@ -644,11 +656,19 @@
             })
             .then(function(r) { return r.json(); })
             .then(function(data) {
-                if (data.printed) showToast('Printed: ' + name, 'success');
-                else showToast('Print failed', 'error');
+                if (!data.ok) {
+                    showToast('ERROR: ' + (data.error || 'Print failed'), 'error');
+                    return;
+                }
+                if (data.printed) {
+                    showToast('Printed: ' + name, 'success');
+                } else {
+                    showToast('PRINT FAILED \u2014 check printer', 'error');
+                }
                 closeModal();
             })
-            .catch(function() { showToast('Request failed', 'error'); });
+            .catch(function() { showToast('REQUEST FAILED \u2014 check connection', 'error'); });
+
         } else if (action === 'add') {
             fetch('/api/catalog', {
                 method: 'POST',
@@ -657,39 +677,55 @@
             })
             .then(function(r) { return r.json(); })
             .then(function(data) {
-                if (data.ok) {
-                    showToast('Added: ' + data.name, 'success');
-                    addCatalogButton(data.name, category, shelf);
+                if (!data.ok) {
+                    showToast('ERROR: ' + (data.error || 'Failed to save'), 'error');
+                    return;
                 }
+                showToast('Added: ' + data.name, 'success');
+                addCatalogButton(data.name, data.category, data.shelf_life_days);
                 closeModal();
             })
-            .catch(function() { showToast('Request failed', 'error'); });
+            .catch(function() { showToast('REQUEST FAILED \u2014 check connection', 'error'); });
+
         } else if (action === 'add-print') {
-            // First add to catalog, then quick-add to create item + print
             fetch('/api/catalog', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({name: name, category: category, shelf_life_days: shelf})
             })
             .then(function(r) { return r.json(); })
-            .then(function(data) {
-                if (!data.ok) { showToast('Failed to save', 'error'); return; }
-                addCatalogButton(data.name, category, shelf);
+            .then(function(catData) {
+                if (!catData.ok) {
+                    showToast('ERROR: ' + (catData.error || 'Failed to save'), 'error');
+                    return Promise.reject('catalog_failed');
+                }
+                addCatalogButton(catData.name, catData.category, catData.shelf_life_days);
                 return fetch('/api/quick-add', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({name: data.name})
+                    body: JSON.stringify({name: catData.name})
                 });
             })
-            .then(function(r) { if (r) return r.json(); })
+            .then(function(r) { return r.json(); })
             .then(function(data) {
-                if (!data) return;
-                if (data.printed) showToast('Printed: ' + data.item.name, 'success');
-                else showToast('Saved \u2014 print failed', 'warn');
+                if (!data.ok) {
+                    showToast('ERROR: ' + (data.error || 'Failed to create item'), 'error');
+                    closeModal();
+                    return;
+                }
+                if (data.printed) {
+                    showToast('Printed: ' + data.item.name, 'success');
+                } else {
+                    showToast('Saved \u2014 PRINT FAILED, use Reprint', 'warn');
+                }
                 addActiveItemToDOM(data.item);
                 closeModal();
             })
-            .catch(function() { showToast('Request failed', 'error'); });
+            .catch(function(err) {
+                if (err !== 'catalog_failed') {
+                    showToast('REQUEST FAILED \u2014 check connection', 'error');
+                }
+            });
         }
     }
 
@@ -714,6 +750,39 @@
         btn.setAttribute('onclick', 'quickAdd(this)');
         btn.innerHTML = name + '<span class="shelf">' + shelf + 'd shelf life</span>';
         grid.insertBefore(btn, grid.firstChild);
+
+        // Add category filter tab if this category is new
+        ensureCategoryTab(category);
+
+        // Also add to the modal category dropdown
+        ensureCategoryOption(category);
+    }
+
+    function ensureCategoryTab(category) {
+        var filterBar = document.querySelector('.filter-bar');
+        var filterKey = 'cat-' + category;
+        var existingTab = filterBar.querySelector('[data-filter="' + filterKey + '"]');
+        if (existingTab) return;
+        // Insert before the "All" tab (last tab)
+        var allTab = filterBar.querySelector('[data-filter="all"]');
+        var tab = document.createElement('button');
+        tab.className = 'filter-tab';
+        tab.dataset.filter = filterKey;
+        tab.textContent = category;
+        filterBar.insertBefore(tab, allTab);
+    }
+
+    function ensureCategoryOption(category) {
+        var sel = document.getElementById('m-category');
+        for (var i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].value === category) return;
+        }
+        // Insert before "__new__" option (last)
+        var newOpt = document.createElement('option');
+        newOpt.value = category;
+        newOpt.textContent = category;
+        var newCatOption = sel.querySelector('option[value="__new__"]');
+        sel.insertBefore(newOpt, newCatOption);
     }
 
     /* ---- Clock ---- */
