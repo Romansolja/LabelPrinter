@@ -329,6 +329,132 @@ def print_once():
     return jsonify({"ok": True, "printed": printed})
 
 
+@app.route("/api/catalog/<int:catalog_id>/deactivate", methods=["POST"])
+def deactivate_catalog(catalog_id):
+    db = get_db()
+    row = db.execute("SELECT name FROM catalog WHERE id = ?", (catalog_id,)).fetchone()
+    if not row:
+        return jsonify({"ok": False, "error": "Item not found"}), 404
+    db.execute("UPDATE catalog SET is_active = 0 WHERE id = ?", (catalog_id,))
+    db.commit()
+    return jsonify({"ok": True, "name": row["name"]})
+
+
+@app.route("/api/catalog/<int:catalog_id>/activate", methods=["POST"])
+def activate_catalog(catalog_id):
+    db = get_db()
+    row = db.execute("SELECT name FROM catalog WHERE id = ?", (catalog_id,)).fetchone()
+    if not row:
+        return jsonify({"ok": False, "error": "Item not found"}), 404
+    db.execute("UPDATE catalog SET is_active = 1 WHERE id = ?", (catalog_id,))
+    db.commit()
+    return jsonify({"ok": True, "name": row["name"]})
+
+
+@app.route("/api/catalog/<int:catalog_id>", methods=["POST"])
+def update_catalog_item(catalog_id):
+    """Update an existing catalog item's name, category, or shelf life."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"ok": False, "error": "Invalid request"}), 400
+    db = get_db()
+    row = db.execute("SELECT * FROM catalog WHERE id = ?", (catalog_id,)).fetchone()
+    if not row:
+        return jsonify({"ok": False, "error": "Item not found"}), 404
+
+    name = _normalize_name(data.get("name", row["name"]))
+    category = data.get("category", row["category"]).strip().title()
+    if not name:
+        return jsonify({"ok": False, "error": "Name cannot be empty"}), 400
+    try:
+        shelf_life_val = int(data.get("shelf_life_days", row["shelf_life_days"]))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "Shelf life must be a number"}), 400
+    if shelf_life_val < 0 or shelf_life_val > 365:
+        return jsonify({"ok": False, "error": "Shelf life must be 0-365 days"}), 400
+    if not category:
+        category = "Other"
+
+    # Don't update updated_at here — that's only for actual usage
+    db.execute(
+        "UPDATE catalog SET name = ?, category = ?, shelf_life_days = ? WHERE id = ?",
+        (name, category, shelf_life_val, catalog_id),
+    )
+    db.commit()
+    return jsonify({"ok": True, "id": catalog_id, "name": name, "category": category, "shelf_life_days": shelf_life_val})
+
+
+@app.route("/api/category", methods=["POST"])
+def add_category():
+    """Create a new category by name. Just validates and returns — categories
+    exist implicitly via catalog items, but this endpoint lets the UI confirm
+    the name is valid before assigning items to it."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"ok": False, "error": "Invalid request"}), 400
+    name = data.get("name", "").strip().title()
+    if not name:
+        return jsonify({"ok": False, "error": "Category name cannot be empty"}), 400
+    if name == "Other":
+        return jsonify({"ok": False, "error": "'Other' already exists"}), 400
+    return jsonify({"ok": True, "category": name})
+
+
+@app.route("/api/category/rename", methods=["POST"])
+def rename_category():
+    data = request.get_json()
+    if not data:
+        return jsonify({"ok": False, "error": "Invalid request"}), 400
+    old_name = data.get("old_name", "").strip().title()
+    new_name = data.get("new_name", "").strip().title()
+    if not old_name or not new_name:
+        return jsonify({"ok": False, "error": "Both old and new names required"}), 400
+    if old_name == "Other":
+        return jsonify({"ok": False, "error": "Cannot rename 'Other'"}), 400
+
+    db = get_db()
+    count = db.execute("SELECT COUNT(*) FROM catalog WHERE category = ?", (old_name,)).fetchone()[0]
+    if count == 0:
+        return jsonify({"ok": False, "error": "Category not found"}), 404
+    db.execute("UPDATE catalog SET category = ? WHERE category = ?", (new_name, old_name))
+    db.commit()
+    return jsonify({"ok": True, "old_name": old_name, "new_name": new_name, "items_moved": count})
+
+
+@app.route("/api/category/delete", methods=["POST"])
+def delete_category():
+    """Delete a category by moving all its items to a destination category (default: Other)."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"ok": False, "error": "Invalid request"}), 400
+    name = data.get("name", "").strip().title()
+    move_to = data.get("move_to", "Other").strip().title()
+    if not name:
+        return jsonify({"ok": False, "error": "Category name required"}), 400
+    if name == "Other":
+        return jsonify({"ok": False, "error": "Cannot delete 'Other'"}), 400
+    if not move_to:
+        move_to = "Other"
+
+    db = get_db()
+    count = db.execute("SELECT COUNT(*) FROM catalog WHERE category = ?", (name,)).fetchone()[0]
+    if count == 0:
+        return jsonify({"ok": False, "error": "Category not found"}), 404
+    db.execute("UPDATE catalog SET category = ? WHERE category = ?", (move_to, name))
+    db.commit()
+    return jsonify({"ok": True, "deleted": name, "moved_to": move_to, "items_moved": count})
+
+
+@app.route("/api/catalog/all")
+def get_all_catalog():
+    """Return full catalog including inactive items, for the Manage Catalog view."""
+    db = get_db()
+    rows = db.execute(
+        "SELECT * FROM catalog ORDER BY category, name"
+    ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
 @app.route("/done/<int:item_id>", methods=["POST"])
 def done(item_id):
     db = get_db()
