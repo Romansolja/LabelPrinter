@@ -475,7 +475,7 @@
         .then(function(data) {
             btn.classList.remove('busy');
             if (!data.ok) {
-                showToast(data.error || 'Failed to add item', 'error');
+                showToast('ERROR: ' + (data.error || 'Failed to add item'), 'error');
                 return;
             }
             if (data.printed) {
@@ -550,22 +550,30 @@
     function markDone(id) {
         fetch('/done/' + id, {method: 'POST', headers: {'X-Requested-With': 'fetch'}})
         .then(function(r) { return r.json(); })
-        .then(function() {
+        .then(function(data) {
+            if (!data.ok) {
+                showToast('ERROR: ' + (data.error || 'Failed to mark done'), 'error');
+                return;
+            }
             var el = document.getElementById('ai-' + id);
             if (el) el.remove();
             updateDashCount();
         })
-        .catch(function() { showToast('Failed to mark done', 'error'); });
+        .catch(function() { showToast('REQUEST FAILED \u2014 check connection', 'error'); });
     }
 
     function reprintItem(id) {
         fetch('/print/' + id, {method: 'POST', headers: {'X-Requested-With': 'fetch'}})
         .then(function(r) { return r.json(); })
         .then(function(data) {
+            if (!data.ok) {
+                showToast('ERROR: ' + (data.error || 'Reprint failed'), 'error');
+                return;
+            }
             if (data.printed) showToast('Reprinted!', 'success');
-            else showToast('Reprint failed', 'error');
+            else showToast('REPRINT FAILED \u2014 check printer', 'error');
         })
-        .catch(function() { showToast('Reprint failed', 'error'); });
+        .catch(function() { showToast('REQUEST FAILED \u2014 check connection', 'error'); });
     }
 
     /* ---- Filter Tabs ---- */
