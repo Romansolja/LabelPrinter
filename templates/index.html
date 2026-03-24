@@ -65,22 +65,25 @@
         .item-btn .shelf { font-size: 0.75rem; font-weight: 400; color: #a0a0a0; }
         .empty-grid { text-align: center; color: #666; padding: 48px 16px; font-size: 1rem; }
 
-        /* --- Dashboard --- */
+        /* --- Dashboard (edge-to-edge dock) --- */
         .dashboard {
-            flex-shrink: 0; background: #16213e; border-top: 1px solid #0f3460;
+            flex-shrink: 0; background: #16213e; border-top: 2px solid #0f3460;
             max-height: 45vh; display: flex; flex-direction: column;
         }
+        .dashboard.collapsed { max-height: none; }
         .dash-header {
             display: flex; align-items: center; justify-content: space-between;
-            padding: 10px 16px; cursor: pointer; min-height: 48px;
+            padding: 8px 16px; cursor: pointer; min-height: 44px;
         }
-        .dash-header h2 { font-size: 1rem; font-weight: 600; }
+        .dashboard.collapsed .dash-header { padding: 6px 16px; min-height: 36px; }
+        .dash-header h2 { font-size: 0.95rem; font-weight: 600; }
         .dash-badge {
             background: #ef4444; color: #fff; border-radius: 12px; padding: 2px 10px;
             font-size: 0.8rem; font-weight: 700; min-width: 24px; text-align: center;
         }
-        .dash-badge.ok { background: #22c55e; }
-        .dash-toggle { background: none; border: none; color: #a0a0a0; font-size: 1.2rem; cursor: pointer; padding: 4px 8px; }
+        .dash-badge.ok { background: #334155; color: #64748b; }
+        .dashboard.collapsed .dash-header h2 { color: #94a3b8; font-size: 0.85rem; }
+        .dash-toggle { background: none; border: none; color: #a0a0a0; font-size: 1rem; cursor: pointer; padding: 4px 8px; }
         .dash-body { overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 0 16px 12px; }
         .dashboard.collapsed .dash-body { display: none; }
         .active-item {
@@ -421,6 +424,21 @@
         </div>
     </div>
 
+    <!-- ============================================================ -->
+    <!-- DELETE CONFIRMATION modal -->
+    <!-- ============================================================ -->
+    <div class="overlay" id="confirm-delete" onclick="closeOverlay(event, 'confirm-delete')">
+        <div class="sheet">
+            <h2 style="color:#fca5a5;">Delete Permanently</h2>
+            <p style="font-size:0.9rem;color:#a0a0a0;margin-bottom:6px;" id="confirm-delete-name"></p>
+            <p style="font-size:0.85rem;color:#64748b;margin-bottom:18px;">This will not erase past printed item history.</p>
+            <div class="modal-actions">
+                <button class="modal-btn" style="background:#ef4444;" onclick="doDeleteItem()">Delete Permanently</button>
+                <button class="modal-btn tertiary" onclick="closeSheet('confirm-delete')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <script>
     /* ==================================================================
        TOAST
@@ -633,6 +651,7 @@
                     html += '<button class="mi-btn danger" onclick="deactivateItem(' + item.id + ')">Hide</button>';
                 } else {
                     html += '<button class="mi-btn restore" onclick="activateItem(' + item.id + ')">Restore</button>';
+                    html += '<button class="mi-btn" style="background:#7f1d1d;color:#fca5a5;font-size:0.75rem;" onclick="confirmDeleteItem(' + item.id + ')">Delete</button>';
                 }
                 html += '</div></div>';
             });
@@ -713,6 +732,34 @@
         .then(function(data) {
             if (!data.ok) { showToast('ERROR: ' + (data.error || 'Failed'), 'error'); return; }
             showToast('Restored: ' + data.name, 'success');
+            loadManageCatalog();
+        })
+        .catch(function() { showToast('REQUEST FAILED \u2014 check connection', 'error'); });
+    }
+
+    /* ---- Permanent delete (with confirmation) ---- */
+    var pendingDeleteId = null;
+
+    function confirmDeleteItem(id) {
+        var item = manageCatalogData.find(function(i) { return i.id === id; });
+        if (!item) return;
+        pendingDeleteId = id;
+        document.getElementById('confirm-delete-name').textContent =
+            'Delete "' + item.name + '" from the catalog?';
+        document.getElementById('confirm-delete').classList.add('open');
+    }
+
+    function doDeleteItem() {
+        if (!pendingDeleteId) return;
+        var id = pendingDeleteId;
+        pendingDeleteId = null;
+        closeSheet('confirm-delete');
+
+        fetch('/api/catalog/' + id + '/delete', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.ok) { showToast('ERROR: ' + (data.error || 'Delete failed'), 'error'); return; }
+            showToast('Deleted: ' + data.name, 'success');
             loadManageCatalog();
         })
         .catch(function() { showToast('REQUEST FAILED \u2014 check connection', 'error'); });

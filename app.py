@@ -351,6 +351,18 @@ def activate_catalog(catalog_id):
     return jsonify({"ok": True, "name": row["name"]})
 
 
+@app.route("/api/catalog/<int:catalog_id>/delete", methods=["POST"])
+def delete_catalog(catalog_id):
+    """Permanently delete a catalog item. Does NOT delete printed item history."""
+    db = get_db()
+    row = db.execute("SELECT name FROM catalog WHERE id = ?", (catalog_id,)).fetchone()
+    if not row:
+        return jsonify({"ok": False, "error": "Item not found"}), 404
+    db.execute("DELETE FROM catalog WHERE id = ?", (catalog_id,))
+    db.commit()
+    return jsonify({"ok": True, "name": row["name"]})
+
+
 @app.route("/api/catalog/<int:catalog_id>", methods=["POST"])
 def update_catalog_item(catalog_id):
     """Update an existing catalog item's name, category, or shelf life."""
