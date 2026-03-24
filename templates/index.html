@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Kitchen Tracker</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -65,17 +65,20 @@
         .item-btn .shelf { font-size: 0.75rem; font-weight: 400; color: #a0a0a0; }
         .empty-grid { text-align: center; color: #666; padding: 48px 16px; font-size: 1rem; }
 
-        /* --- Dashboard (edge-to-edge dock) --- */
+        /* --- Dashboard (edge-to-edge dock, safe-area aware) --- */
         .dashboard {
-            flex-shrink: 0; background: #16213e; border-top: 2px solid #0f3460;
+            flex-shrink: 0; background: #16213e; border-top: 1px solid #0f3460;
             max-height: 45vh; display: flex; flex-direction: column;
+            padding-bottom: env(safe-area-inset-bottom, 0px);
         }
         .dashboard.collapsed { max-height: none; }
         .dash-header {
             display: flex; align-items: center; justify-content: space-between;
-            padding: 8px 16px; cursor: pointer; min-height: 44px;
+            padding: 10px 20px; cursor: pointer; min-height: 48px;
         }
-        .dashboard.collapsed .dash-header { padding: 6px 16px; min-height: 36px; }
+        .dashboard.collapsed .dash-header {
+            padding: 10px 20px; min-height: 44px;
+        }
         .dash-header h2 { font-size: 0.95rem; font-weight: 600; }
         .dash-badge {
             background: #ef4444; color: #fff; border-radius: 12px; padding: 2px 10px;
@@ -83,8 +86,8 @@
         }
         .dash-badge.ok { background: #334155; color: #64748b; }
         .dashboard.collapsed .dash-header h2 { color: #94a3b8; font-size: 0.85rem; }
-        .dash-toggle { background: none; border: none; color: #a0a0a0; font-size: 1rem; cursor: pointer; padding: 4px 8px; }
-        .dash-body { overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 0 16px 12px; }
+        .dash-toggle { background: none; border: none; color: #a0a0a0; font-size: 1rem; cursor: pointer; padding: 4px 12px; }
+        .dash-body { overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 0 20px 12px; }
         .dashboard.collapsed .dash-body { display: none; }
         .active-item {
             display: flex; align-items: center; justify-content: space-between;
@@ -198,6 +201,11 @@
             background: #16213e; gap: 10px;
         }
         .manage-item.inactive { opacity: 0.45; }
+        .manage-item.inactive .mi-btn-delete { opacity: 2.22; } /* 0.45 * 2.22 ≈ 1.0 — full strength */
+        .mi-btn-delete {
+            background: #dc2626 !important; color: #fff !important;
+            font-weight: 600 !important; border: 1px solid #991b1b !important;
+        }
         .manage-item-info { flex: 1; min-width: 0; }
         .manage-item-info .mi-name { font-weight: 600; font-size: 0.95rem; color: #fff; }
         .manage-item-info .mi-meta { font-size: 0.75rem; color: #a0a0a0; }
@@ -651,7 +659,7 @@
                     html += '<button class="mi-btn danger" onclick="deactivateItem(' + item.id + ')">Hide</button>';
                 } else {
                     html += '<button class="mi-btn restore" onclick="activateItem(' + item.id + ')">Restore</button>';
-                    html += '<button class="mi-btn" style="background:#7f1d1d;color:#fca5a5;font-size:0.75rem;" onclick="confirmDeleteItem(' + item.id + ')">Delete</button>';
+                    html += '<button class="mi-btn mi-btn-delete" onclick="confirmDeleteItem(' + item.id + ')">Delete</button>';
                 }
                 html += '</div></div>';
             });
