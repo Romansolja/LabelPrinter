@@ -630,7 +630,7 @@
                 html += '<div class="manage-item-actions">';
                 html += '<button class="mi-btn" onclick="startEditItem(' + item.id + ')">Edit</button>';
                 if (item.is_active) {
-                    html += '<button class="mi-btn danger" onclick="deactivateItem(' + item.id + ')">Remove</button>';
+                    html += '<button class="mi-btn danger" onclick="deactivateItem(' + item.id + ')">Hide</button>';
                 } else {
                     html += '<button class="mi-btn restore" onclick="activateItem(' + item.id + ')">Restore</button>';
                 }
@@ -701,7 +701,7 @@
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.ok) { showToast('ERROR: ' + (data.error || 'Failed'), 'error'); return; }
-            showToast('Removed: ' + data.name, 'success');
+            showToast('Hidden: ' + data.name, 'success');
             loadManageCatalog();
         })
         .catch(function() { showToast('REQUEST FAILED \u2014 check connection', 'error'); });
