@@ -1103,11 +1103,10 @@
                 }
             }
         })
-        .catch(function() {});
+        .catch(function(e) { console.warn('Sync poll failed:', e); });
     }
 
-    refreshSyncVersion();
-    setInterval(checkForUpdates, 5000);
+    var pollId = setInterval(checkForUpdates, 5000);
     </script>
 </body>
 </html>
