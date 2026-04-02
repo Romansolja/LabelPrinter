@@ -838,6 +838,23 @@
         if (!section) return;
         var titleEl = section.querySelector('.manage-section-title');
 
+        // Check if any catalog items belong to this category
+        var itemsInCat = manageCatalogData.filter(function(i) { return i.category === cat; });
+
+        // If empty, skip the destination picker and delete directly
+        if (itemsInCat.length === 0) {
+            var form = document.createElement('div');
+            form.className = 'cat-inline-form';
+            form.style.flexWrap = 'wrap';
+            form.innerHTML =
+                '<span style="font-size:0.85rem;width:100%;margin-bottom:4px;color:#fca5a5;">Delete empty category?</span>' +
+                '<button style="background:#ef4444;" onclick="doDeleteCat(\'' + cat.replace(/'/g, "\\'") + '\')">Delete</button>' +
+                '<button style="background:#374151;" onclick="loadManageCatalog()">Cancel</button>';
+            titleEl.parentNode.insertBefore(form, titleEl.nextSibling);
+            titleEl.style.display = 'none';
+            return;
+        }
+
         // Build destination picker from existing categories (excluding the one being deleted)
         var allCats = [];
         manageCatalogData.forEach(function(i) {
@@ -864,7 +881,8 @@
     }
 
     function doDeleteCat(cat) {
-        var moveTo = document.getElementById('delete-cat-dest').value;
+        var destEl = document.getElementById('delete-cat-dest');
+        var moveTo = destEl ? destEl.value : 'Other';
 
         fetch('/api/category/delete', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
