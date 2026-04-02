@@ -145,6 +145,11 @@
         }
         .action-item:active { background: #00b4d8; color: #fff; }
         .action-item.cancel { background: #374151; text-align: center; margin-top: 4px; }
+        .action-item.blank-label {
+            background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%);
+            border-left: 4px solid #f59e0b; color: #f59e0b;
+        }
+        .action-item.blank-label:active { background: #f59e0b; color: #1a1a2e; }
 
         /* --- Form fields --- */
         .field { margin-bottom: 14px; }
@@ -360,6 +365,7 @@
                 <button class="action-item" onclick="closeSheet('action-sheet'); openAddItem();">Add Custom Item</button>
                 <button class="action-item" onclick="closeSheet('action-sheet'); openAddCategory();">Add Category</button>
                 <button class="action-item" onclick="closeSheet('action-sheet'); openManageCatalog();">Manage Catalog</button>
+                <button class="action-item blank-label" onclick="closeSheet('action-sheet'); printBlankLabel();">Print Blank Label</button>
                 <button class="action-item cancel" onclick="closeSheet('action-sheet')">Cancel</button>
             </div>
         </div>
@@ -972,6 +978,16 @@
             if (!data.ok) { showToast('ERROR: ' + (data.error || 'Reprint failed'), 'error'); return; }
             if (data.printed) showToast('Reprinted!', 'success');
             else showToast('REPRINT FAILED \u2014 check printer', 'error');
+        })
+        .catch(function() { showToast('REQUEST FAILED \u2014 check connection', 'error'); });
+    }
+
+    function printBlankLabel() {
+        fetch('/api/print-blank', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'fetch'}})
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.printed) showToast('Blank label printed', 'success');
+            else showToast('PRINT FAILED \u2014 check printer', 'error');
         })
         .catch(function() { showToast('REQUEST FAILED \u2014 check connection', 'error'); });
     }

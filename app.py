@@ -164,6 +164,30 @@ def print_label(name, stored_date, expiration_date):
         return True
 
 
+def print_blank_label():
+    """Print a blank ZPL label with just today's date. Returns True on success."""
+    today_str = date.today().strftime("%b %d, %Y")
+    zpl = (
+        "^XA\n"
+        "^CFA,30\n"
+        f"^FO50,200^FDDate: {today_str}^FS\n"
+        "^PQ1\n"
+        "^XZ\n"
+    )
+    if sys.platform == "linux" and os.path.exists(PRINTER_PATH):
+        try:
+            with open(PRINTER_PATH, "wb") as printer:
+                printer.write(zpl.encode())
+            return True
+        except IOError as e:
+            print(f"[WARN] Printer error: {e}")
+            return False
+    else:
+        print("[DEV] Would print ZPL label:")
+        print(zpl)
+        return True
+
+
 def _is_ajax():
     return request.headers.get("X-Requested-With") == "fetch"
 
@@ -355,6 +379,12 @@ def print_once():
     today = date.today()
     expiration = today + timedelta(days=shelf_life_val)
     printed = print_label(name, today, expiration)
+    return jsonify({"ok": True, "printed": printed})
+
+
+@app.route("/api/print-blank", methods=["POST"])
+def print_blank():
+    printed = print_blank_label()
     return jsonify({"ok": True, "printed": printed})
 
 
