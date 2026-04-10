@@ -465,7 +465,7 @@
                 <div class="debug-row"><span class="debug-label">CPU usage</span><span class="debug-value" id="dbg-cpu">&mdash;</span></div>
                 <div class="debug-row"><span class="debug-label">CPU temp</span><span class="debug-value" id="dbg-temp">&mdash;</span></div>
                 <div class="debug-row"><span class="debug-label">RAM</span><span class="debug-value" id="dbg-ram">&mdash;</span></div>
-                <div class="debug-row"><span class="debug-label">Disk</span><span class="debug-value" id="dbg-disk">&mdash;</span></div>
+                <div class="debug-row"><span class="debug-label">Root filesystem</span><span class="debug-value" id="dbg-disk">&mdash;</span></div>
                 <div class="debug-row"><span class="debug-label">Uptime</span><span class="debug-value" id="dbg-uptime">&mdash;</span></div>
             </div>
             <div class="debug-foot" id="dbg-updated">Updated: &mdash;</div>
@@ -1227,13 +1227,17 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(d) {
-            setDbgStat('dbg-cpu',  d.cpu_percent != null ? d.cpu_percent.toFixed(0) + ' %' : null);
+            // CPU is a smoothed rolling average from the server; show one
+            // decimal so the value is honest, not rounded to a misleading 0%.
+            setDbgStat('dbg-cpu',  d.cpu_percent != null ? d.cpu_percent.toFixed(1) + ' %' : null);
             setDbgStat('dbg-temp', d.cpu_temp_c  != null ? d.cpu_temp_c + ' \u00B0C'      : null);
             setDbgStat('dbg-ram',  d.ram_percent != null
-                ? d.ram_percent + ' %  (' + d.ram_used_mb + ' / ' + d.ram_total_mb + ' MB)'
+                ? d.ram_used_mb + ' / ' + d.ram_total_mb + ' MB  (' + d.ram_percent + '%)'
                 : null);
+            // "Root filesystem": used / total is the headline, percent in parens.
+            // Makes it obvious the number is space on /, not raw drive size.
             setDbgStat('dbg-disk', d.disk_percent != null
-                ? d.disk_percent + ' %  (' + d.disk_used_gb + ' / ' + d.disk_total_gb + ' GB)'
+                ? d.disk_used_gb + ' / ' + d.disk_total_gb + ' GB  (' + d.disk_percent + '%)'
                 : null);
             setDbgStat('dbg-uptime', fmtUptime(d.uptime_seconds));
             // Prefer the server timestamp — proves the request actually

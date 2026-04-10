@@ -2,10 +2,25 @@ import os
 import sys
 import time
 import sqlite3
+from collections import deque
 from datetime import date, timedelta
 
 import psutil
 from flask import Flask, g, jsonify, redirect, render_template, request, url_for
+
+# Prime psutil's CPU counter at module load. psutil.cpu_percent(interval=None)
+# returns 0.0 on the first call after import, then the % over the elapsed
+# period on each subsequent call — so we throw the priming sample away here
+# and the first request gets a meaningful number.
+try:
+    psutil.cpu_percent(interval=None)
+except Exception:
+    pass
+
+# Rolling buffer of recent CPU samples. With the panel polling every 5s,
+# 5 entries = ~25s smoothed average. Smooths out single-tick spikes so the
+# displayed number is stable and readable rather than jittering 0/40/0/20.
+_cpu_samples = deque(maxlen=5)
 
 app = Flask(__name__)
 DATABASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "food.db")
@@ -555,9 +570,19 @@ def _read_cpu_temp_c():
         return round(int(f.read().strip()) / 1000.0, 1)
 
 
+def _sample_cpu():
+    """Take a non-blocking CPU sample, push it into the rolling buffer, and
+    return the smoothed average as a float with one decimal. Never blocks
+    (interval=None means psutil returns the % since the last call rather
+    than sleeping), so the print path can never get stuck behind this."""
+    val = psutil.cpu_percent(interval=None)
+    _cpu_samples.append(val)
+    return round(sum(_cpu_samples) / len(_cpu_samples), 1)
+
+
 @app.route("/api/system-stats")
 def api_system_stats():
-    cpu_pct = _safe(psutil.cpu_percent, interval=None)  # non-blocking
+    cpu_pct = _safe(_sample_cpu)
     vm = _safe(psutil.virtual_memory)
     disk = _safe(psutil.disk_usage, "/")
     boot_time = _safe(psutil.boot_time)
