@@ -1,8 +1,10 @@
 import os
 import sys
+import time
 import sqlite3
 from datetime import date, timedelta
 
+import psutil
 from flask import Flask, g, jsonify, redirect, render_template, request, url_for
 
 app = Flask(__name__)
@@ -537,6 +539,49 @@ def delete_category():
 @app.route("/api/sync-state")
 def sync_state():
     return jsonify({"catalog_version": CATALOG_VERSION})
+
+
+def _safe(fn, *args, **kwargs):
+    """Run a metric collector; return None on any failure. Never raises."""
+    try:
+        return fn(*args, **kwargs)
+    except Exception:
+        return None
+
+
+def _read_cpu_temp_c():
+    # Pi exposes millidegrees C in this file. Not present on Windows dev machine.
+    with open("/sys/class/thermal/thermal_zone0/temp", "r") as f:
+        return round(int(f.read().strip()) / 1000.0, 1)
+
+
+@app.route("/api/system-stats")
+def api_system_stats():
+    cpu_pct = _safe(psutil.cpu_percent, interval=None)  # non-blocking
+    vm = _safe(psutil.virtual_memory)
+    disk = _safe(psutil.disk_usage, "/")
+    boot_time = _safe(psutil.boot_time)
+    temp_c = _safe(_read_cpu_temp_c)
+
+    uptime_seconds = None
+    if boot_time is not None:
+        try:
+            uptime_seconds = int(time.time() - boot_time)
+        except Exception:
+            uptime_seconds = None
+
+    return jsonify({
+        "cpu_percent":    cpu_pct,
+        "cpu_temp_c":     temp_c,
+        "ram_percent":    vm.percent if vm else None,
+        "ram_used_mb":    int(vm.used / (1024 * 1024)) if vm else None,
+        "ram_total_mb":   int(vm.total / (1024 * 1024)) if vm else None,
+        "disk_percent":   disk.percent if disk else None,
+        "disk_used_gb":   round(disk.used / (1024 ** 3), 1) if disk else None,
+        "disk_total_gb":  round(disk.total / (1024 ** 3), 1) if disk else None,
+        "uptime_seconds": uptime_seconds,
+        "server_time":    int(time.time()),  # epoch seconds, set after collection
+    })
 
 
 @app.route("/api/catalog/all")

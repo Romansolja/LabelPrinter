@@ -278,6 +278,22 @@
         }
         @media (min-width: 700px) { .item-grid { grid-template-columns: repeat(4, 1fr); } }
         @media (min-width: 1024px) { .item-grid { grid-template-columns: repeat(5, 1fr); } }
+
+        /* --- Debug panel --- */
+        .btn-debug {
+            background: #16213e; color: #e0e0e0; border: 1px solid #0f3460;
+            border-radius: 8px; min-width: 42px; min-height: 42px;
+            font-size: 20px; cursor: pointer;
+        }
+        .debug-grid { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+        .debug-row {
+            display: flex; justify-content: space-between; align-items: baseline;
+            padding: 10px 14px; background: #0f3460; border-radius: 8px; font-size: 16px;
+        }
+        .debug-label { color: #9aa3b2; }
+        .debug-value { color: #e0e0e0; font-variant-numeric: tabular-nums; }
+        .debug-value.unavailable { color: #777; font-style: italic; }
+        .debug-foot { margin-top: 14px; text-align: center; color: #777; font-size: 13px; }
     </style>
 </head>
 <body>
@@ -287,6 +303,7 @@
         <div class="header-right">
             <span id="clock"></span>
             <button class="btn-custom" onclick="openActionSheet()">+ Custom</button>
+            <button class="btn-debug" onclick="openDebugPanel()" title="System Debug" aria-label="System Debug">&#9881;</button>
         </div>
     </div>
 
@@ -434,6 +451,24 @@
                 <input type="text" class="manage-search" id="manage-search" placeholder="Search items..." oninput="filterManageList()">
                 <div id="manage-list"></div>
             </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- DEBUG / SYSTEM STATS panel -->
+    <!-- ============================================================ -->
+    <div class="overlay" id="debug-panel" onclick="if(event.target===this) closeDebugPanel();">
+        <div class="sheet">
+            <button class="sheet-close" onclick="closeDebugPanel()">&times;</button>
+            <h2>System Debug</h2>
+            <div class="debug-grid">
+                <div class="debug-row"><span class="debug-label">CPU usage</span><span class="debug-value" id="dbg-cpu">&mdash;</span></div>
+                <div class="debug-row"><span class="debug-label">CPU temp</span><span class="debug-value" id="dbg-temp">&mdash;</span></div>
+                <div class="debug-row"><span class="debug-label">RAM</span><span class="debug-value" id="dbg-ram">&mdash;</span></div>
+                <div class="debug-row"><span class="debug-label">Disk</span><span class="debug-value" id="dbg-disk">&mdash;</span></div>
+                <div class="debug-row"><span class="debug-label">Uptime</span><span class="debug-value" id="dbg-uptime">&mdash;</span></div>
+            </div>
+            <div class="debug-foot" id="dbg-updated">Updated: &mdash;</div>
         </div>
     </div>
 
@@ -1141,6 +1176,77 @@
     }
 
     var pollId = setInterval(checkForUpdates, 5000);
+
+    /* ==================================================================
+       SYSTEM DEBUG PANEL
+    ================================================================== */
+    var debugPollId = null;
+
+    function openDebugPanel() {
+        document.getElementById('debug-panel').classList.add('open');
+        // Guard against duplicate intervals — if the user taps the gear twice,
+        // clear any existing poller first so we never stack multiple 5s timers.
+        if (debugPollId) { clearInterval(debugPollId); debugPollId = null; }
+        refreshDebugStats();
+        debugPollId = setInterval(refreshDebugStats, 5000);
+    }
+
+    function closeDebugPanel() {
+        document.getElementById('debug-panel').classList.remove('open');
+        if (debugPollId) { clearInterval(debugPollId); debugPollId = null; }
+        if (pendingReload && !isModalOpen()) { location.reload(); }
+    }
+
+    function fmtUptime(s) {
+        if (s == null) return null;
+        var d = Math.floor(s / 86400);
+        var h = Math.floor((s % 86400) / 3600);
+        var m = Math.floor((s % 3600) / 60);
+        if (d > 0) return d + 'd ' + h + 'h ' + m + 'm';
+        if (h > 0) return h + 'h ' + m + 'm';
+        return m + 'm';
+    }
+
+    function setDbgStat(id, text) {
+        var el = document.getElementById(id);
+        if (text == null) {
+            el.textContent = 'Unavailable';
+            el.classList.add('unavailable');
+        } else {
+            el.textContent = text;
+            el.classList.remove('unavailable');
+        }
+    }
+
+    function refreshDebugStats() {
+        // Explicit no-cache: live stats must never be served stale by the
+        // browser or any intermediate cache.
+        fetch('/api/system-stats', {
+            cache: 'no-store',
+            headers: { 'Cache-Control': 'no-cache' }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            setDbgStat('dbg-cpu',  d.cpu_percent != null ? d.cpu_percent.toFixed(0) + ' %' : null);
+            setDbgStat('dbg-temp', d.cpu_temp_c  != null ? d.cpu_temp_c + ' \u00B0C'      : null);
+            setDbgStat('dbg-ram',  d.ram_percent != null
+                ? d.ram_percent + ' %  (' + d.ram_used_mb + ' / ' + d.ram_total_mb + ' MB)'
+                : null);
+            setDbgStat('dbg-disk', d.disk_percent != null
+                ? d.disk_percent + ' %  (' + d.disk_used_gb + ' / ' + d.disk_total_gb + ' GB)'
+                : null);
+            setDbgStat('dbg-uptime', fmtUptime(d.uptime_seconds));
+            // Prefer the server timestamp — proves the request actually
+            // succeeded on the Pi, not just that the browser interval ticked.
+            var ts = (d.server_time != null) ? new Date(d.server_time * 1000) : new Date();
+            document.getElementById('dbg-updated').textContent =
+                'Updated: ' + ts.toLocaleTimeString();
+        })
+        .catch(function(e) {
+            console.warn('Debug stats fetch failed:', e);
+            // Don't blank previous values on transient failure — leave them as-is.
+        });
+    }
     </script>
 </body>
 </html>
