@@ -22,6 +22,17 @@ except Exception:
 # displayed number is stable and readable rather than jittering 0/40/0/20.
 _cpu_samples = deque(maxlen=5)
 
+# Timestamp of the last successful CPU sample. None until the first call.
+# Used to detect idle gaps where psutil.cpu_percent(interval=None) would
+# return a diluted ~0% because its internal counter hasn't been updated in a
+# long time.
+_last_cpu_sample_time: float | None = None
+
+# If more than this many seconds have elapsed since the last CPU sample the
+# measurement window is considered stale. We re-prime psutil and skip the
+# bad sample rather than push a misleading near-zero value into the buffer.
+_CPU_IDLE_THRESHOLD = 10.0
+
 app = Flask(__name__)
 DATABASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "food.db")
 
@@ -574,9 +585,27 @@ def _sample_cpu():
     """Take a non-blocking CPU sample, push it into the rolling buffer, and
     return the smoothed average as a float with one decimal. Never blocks
     (interval=None means psutil returns the % since the last call rather
-    than sleeping), so the print path can never get stuck behind this."""
+    than sleeping), so the print path can never get stuck behind this.
+
+    If the gap since the last call exceeds _CPU_IDLE_THRESHOLD the psutil
+    counter is stale and would return a diluted near-zero reading. In that
+    case we re-prime the counter, flush the rolling buffer (those old samples
+    are stale too), and return None so callers see null rather than 0%.
+    The very next poll will have a fresh, accurate measurement window."""
+    global _last_cpu_sample_time
+    now = time.time()
+    if _last_cpu_sample_time is not None and (now - _last_cpu_sample_time) > _CPU_IDLE_THRESHOLD:
+        # Re-prime: discard the stale reading and reset the buffer.
+        try:
+            psutil.cpu_percent(interval=None)
+        except Exception:
+            pass
+        _cpu_samples.clear()
+        _last_cpu_sample_time = now
+        return None
     val = psutil.cpu_percent(interval=None)
     _cpu_samples.append(val)
+    _last_cpu_sample_time = now
     return round(sum(_cpu_samples) / len(_cpu_samples), 1)
 
 
